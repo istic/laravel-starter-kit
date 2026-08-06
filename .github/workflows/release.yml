@@ -18,6 +18,8 @@ on:
         description: 'Version bump type'
         required: true
 
+permissions: {}
+
 jobs:
   tag:
     runs-on: ubuntu-latest
