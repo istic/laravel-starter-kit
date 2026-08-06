@@ -1,0 +1,12 @@
+.git
+.env
+node_modules
+vendor
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*.php
+tests
+docs
+.claude
