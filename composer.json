@@ -10,7 +10,9 @@
         "ext-opentelemetry": "*",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
-        "open-telemetry/opentelemetry-auto-laravel": "^1.8"
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/opentelemetry-auto-laravel": "^1.8",
+        "open-telemetry/sdk": "^1.15"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
