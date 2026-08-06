@@ -1,0 +1,9 @@
+tunnel: <TUNNEL_UUID>
+credentials-file: /root/.cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: <app>.istic.dev
+    service: http://laravel.test:80
+  - hostname: vite-<app>.istic.dev
+    service: http://laravel.test:5173
+  - service: http_status:404
