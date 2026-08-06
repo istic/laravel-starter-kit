@@ -6,6 +6,13 @@ pipeline pre-wired. Infra/ops scope only — no frontend framework opinion.
 
 ## Getting started
 
+> `composer create-project istic/laravel-starter-kit` requires this repo to be
+> pushed to a remote and registered (on Packagist, or as a VCS repository) —
+> neither has happened yet. Until then, use a local `path` repository (the
+> same approach used to verify this kit locally) or `composer create-project
+> --repository='{"type":"path","url":"/path/to/istic-laravel-starterkit"}'
+> istic/laravel-starter-kit my-app`.
+
 ```bash
 composer create-project istic/laravel-starter-kit my-app
 cd my-app
@@ -47,7 +54,8 @@ installs the extension via `install-php-extensions opentelemetry` before running
 
 ## Placeholders to fill in after `create-project`
 
-- **App name** — set `APP_NAME` in `.env` (feeds `OTEL_RESOURCE_ATTRIBUTES` and Docker image labels via `docker/production/Dockerfile`'s `ARG APP_NAME`).
+- **App name** — set `APP_NAME` in `.env` (feeds `OTEL_RESOURCE_ATTRIBUTES` and the frontend's `VITE_APP_NAME` via `docker/production/Dockerfile`'s `ARG APP_NAME`).
+- **`docker/production/Dockerfile` image labels** — replace the hardcoded `LABEL maintainer="<TODO: your name/team>"` and `LABEL description="<TODO: app name> production image"` placeholders directly in the Dockerfile; these are separate from `APP_NAME` and aren't populated by any env var.
 - **`docker/cloudflared/config.yml`** — replace `<TUNNEL_UUID>` and `<app>` with a real tunnel, after running (one-time, per project):
 
   ```sh
