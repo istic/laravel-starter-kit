@@ -1,0 +1,237 @@
+name: CI
+
+on:
+  push:
+    branches: [dependabot-updates]
+  pull_request:
+    branches: ["**"]
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to build and deploy"
+        type: string
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  APP_NAME: "<TODO: app name, e.g. myapp>"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # 'edited' also fires for title/body-only edits, not just base-branch
+    # retargets — skip those so an unrelated description tweak doesn't
+    # trigger a full test + build-and-push + deploy-staging run.
+    if: github.event.action != 'edited' || github.event.changes.base != null
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          extensions: opentelemetry
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Run migrations
+        run: php artisan migrate --force
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Lint
+        run: composer lint:check
+
+      - name: Run tests
+        run: composer test
+
+  build-and-push:
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: |
+      github.ref != 'refs/heads/dependabot-updates' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ inputs.tag || github.ref_name }},enable=${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }},enable=${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+            type=sha
+            type=raw,value=latest,enable=${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=staging,enable=${{ github.event_name == 'pull_request' }}
+          labels: |
+            org.opencontainers.image.description=${{ github.event_name == 'pull_request' && format('Staging build for PR #{0}: {1}', github.event.pull_request.number, github.event.pull_request.html_url) || format('Production build {0}', inputs.tag || github.ref_name) }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/production/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ inputs.tag || github.ref_name }}
+            APP_PR_NUMBER=${{ github.event.pull_request.number }}
+            APP_BRANCH=${{ github.head_ref }}
+            APP_ENV=${{ github.event_name == 'pull_request' && 'staging' || 'production' }}
+            VITE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.svc.istic.systems/v1/traces
+
+  deploy-staging:
+    needs: build-and-push
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Deploy staging
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ env.APP_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/docker/${{ env.APP_NAME }}-staging
+            timeout 300 docker compose pull || {
+              echo "ERROR: docker compose pull failed or timed out after 300s"
+              exit 1
+            }
+            docker compose up -d || {
+              echo "ERROR: docker compose up -d failed"
+              docker compose ps
+              docker compose logs --tail=50
+              exit 1
+            }
+            for i in $(seq 1 30); do
+              if docker compose exec -T app php artisan --version > /dev/null 2>&1; then
+                echo "Container ready after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "ERROR: Container failed to become ready after 30 attempts"
+                docker compose exec -T app php artisan --version || true
+                docker compose logs --tail=50 app
+                exit 1
+              fi
+              echo "Attempt ${i}/30: container not ready, waiting..."
+              sleep 2
+            done
+            docker compose exec -T app test -d /var/www/html/public/build/assets || {
+              echo "ERROR: /var/www/html/public/build/assets not found in container, aborting asset copy"
+              exit 1
+            }
+            rm -rf public/build/assets && mkdir -p public/build && docker compose cp app:/var/www/html/public/build/assets public/build/
+            docker compose exec -T app php artisan migrate --force || {
+              echo "ERROR: Migration failed"
+              docker compose exec -T app php artisan migrate:status || true
+              exit 1
+            }
+
+  deploy-production:
+    needs: build-and-push
+    if: inputs.tag != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+
+    steps:
+      - name: Deploy production
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST_PRODUCTION }}
+          username: ${{ env.APP_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/docker/${{ env.APP_NAME }}
+            timeout 300 docker compose pull || {
+              echo "ERROR: docker compose pull failed or timed out after 300s"
+              exit 1
+            }
+            docker compose up -d || {
+              echo "ERROR: docker compose up -d failed"
+              docker compose ps
+              docker compose logs --tail=50
+              exit 1
+            }
+            for i in $(seq 1 30); do
+              if docker compose exec -T app php artisan --version > /dev/null 2>&1; then
+                echo "Container ready after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "ERROR: Container failed to become ready after 30 attempts"
+                docker compose exec -T app php artisan --version || true
+                docker compose logs --tail=50 app
+                exit 1
+              fi
+              echo "Attempt ${i}/30: container not ready, waiting..."
+              sleep 2
+            done
+            docker compose exec -T app test -d /var/www/html/public/build/assets || {
+              echo "ERROR: /var/www/html/public/build/assets not found in container, aborting asset copy"
+              exit 1
+            }
+            rm -rf public/build/assets && mkdir -p public/build && docker compose cp app:/var/www/html/public/build/assets public/build/
+            docker compose exec -T app php artisan migrate --force || {
+              echo "ERROR: Migration failed"
+              docker compose exec -T app php artisan migrate:status || true
+              exit 1
+            }

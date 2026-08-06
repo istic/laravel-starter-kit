@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+  workflow_call:
+    inputs:
+      version_bump:
+        type: string
+        description: 'Version bump type'
+        required: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      next_version: ${{ steps.next_version.outputs.next_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          set -euo pipefail
+          LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+            echo "No existing tags found, starting from $LATEST_TAG"
+          else
+            echo "Latest tag: $LATEST_TAG"
+          fi
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate next version
+        id: next_version
+        env:
+          LATEST_TAG: ${{ steps.get_tag.outputs.latest_tag }}
+          VERSION_BUMP: ${{ inputs.version_bump }}
+        run: |
+          set -euo pipefail
+          VERSION=${LATEST_TAG#v}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          case "$VERSION_BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+            *)
+              echo "Invalid version_bump value: $VERSION_BUMP"
+              exit 1
+              ;;
+          esac
+
+          NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Next version: $NEXT_VERSION"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          NEXT_VERSION: ${{ steps.next_version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          LS_REMOTE_OUTPUT=$(git ls-remote --tags origin "$NEXT_VERSION")
+          if echo "$LS_REMOTE_OUTPUT" | grep -qF "refs/tags/$NEXT_VERSION"; then
+            echo "ERROR: Tag $NEXT_VERSION already exists on remote."
+            echo "A previous run may have pushed the tag but failed before creating the GitHub Release."
+            echo "Recovery options:"
+            echo "  1. If the GitHub Release is missing: create it manually at https://github.com/${GITHUB_REPOSITORY}/releases/new?tag=${NEXT_VERSION}"
+            echo "  2. If you want to re-run: delete the remote tag with: git push origin :refs/tags/${NEXT_VERSION}"
+            exit 1
+          fi
+
+          git tag -a "$NEXT_VERSION" -m "Release $NEXT_VERSION"
+          git push origin "$NEXT_VERSION"
+
+          echo "✅ Created and pushed tag: $NEXT_VERSION"
+
+      - name: Generate release notes
+        id: release_notes
+        env:
+          LATEST_TAG: ${{ steps.get_tag.outputs.latest_tag }}
+          NEXT_VERSION: ${{ steps.next_version.outputs.next_version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$LATEST_TAG" == "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            if ! git rev-parse --verify "$LATEST_TAG" > /dev/null 2>&1; then
+              echo "ERROR: Tag $LATEST_TAG not found in local history"
+              exit 1
+            fi
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          [ -z "$COMMITS" ] && COMMITS="No notable changes."
+
+          TAG_SUFFIX="${NEXT_VERSION#v}"
+
+          {
+            printf '## What'\''s Changed\n\n'
+            printf '%s\n' "${COMMITS}"
+            printf '\n## Docker Image\n\n'
+            printf '```bash\n'
+            printf 'docker pull ghcr.io/%s:%s\n' "${REPOSITORY}" "${TAG_SUFFIX}"
+            printf 'docker pull ghcr.io/%s:latest\n' "${REPOSITORY}"
+            printf '```\n\n'
+            printf '**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+              "${REPOSITORY}" "${LATEST_TAG}" "${NEXT_VERSION}"
+          } > release_notes.md
+
+          echo "Release notes generated"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.next_version.outputs.next_version }}
+          name: Release ${{ steps.next_version.outputs.next_version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+
+  ci:
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tag: ${{ needs.tag.outputs.next_version }}
+    # Pass caller secrets into the reusable workflow (required for SSH_KEY, GITHUB_TOKEN, etc.)
+    secrets: inherit # pragma: allowlist secret
