@@ -7,5 +7,5 @@ Route::get('/', function () {
 });
 
 Route::get('/version', function () {
-    return response()->json(config('version'));
+    return response()->json(collect(config('version'))->except('git_head_path'));
 })->name('version');
