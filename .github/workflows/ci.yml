@@ -76,6 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.ref != 'refs/heads/dependabot-updates' &&
+      github.event.pull_request.base.ref != 'dependabot-updates' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
@@ -134,8 +135,8 @@ jobs:
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-staging
-      cancel-in-progress: true
+      group: deploy-staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
 
@@ -146,9 +147,11 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ env.APP_NAME }}
           key: ${{ secrets.SSH_KEY }}
+          envs: APP_NAME
           script: |
             set -euo pipefail
-            cd /home/docker/${{ env.APP_NAME }}-staging
+            case "$APP_NAME" in *"<TODO"*) echo "ERROR: set env.APP_NAME in ci.yml before deploying" >&2; exit 1 ;; esac
+            cd "/home/docker/${APP_NAME}-staging"
             timeout 300 docker compose pull || {
               echo "ERROR: docker compose pull failed or timed out after 300s"
               exit 1
@@ -201,9 +204,11 @@ jobs:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
           username: ${{ env.APP_NAME }}
           key: ${{ secrets.SSH_KEY }}
+          envs: APP_NAME
           script: |
             set -euo pipefail
-            cd /home/docker/${{ env.APP_NAME }}
+            case "$APP_NAME" in *"<TODO"*) echo "ERROR: set env.APP_NAME in ci.yml before deploying" >&2; exit 1 ;; esac
+            cd "/home/docker/${APP_NAME}"
             timeout 300 docker compose pull || {
               echo "ERROR: docker compose pull failed or timed out after 300s"
               exit 1

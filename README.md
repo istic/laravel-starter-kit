@@ -67,6 +67,7 @@ installs the extension via `install-php-extensions opentelemetry` before running
   Then fill in the real tunnel UUID, credentials filename, and hostnames in `docker/cloudflared/config.yml`.
 - **GHCR image name** — `.github/workflows/ci.yml`'s `env.IMAGE_NAME` defaults to `${{ github.repository }}`, which is usually correct as-is; also set `env.APP_NAME` there (currently `"<TODO: app name, e.g. myapp>"`, used for the SSH deploy user/path).
 - **SSH deploy secrets** — in repo settings, add `SSH_HOST`, `SSH_HOST_PRODUCTION`, and `SSH_KEY`, for hosts already provisioned via `aquarion/autopelago`.
+- **`REBASE_TOKEN`** — a PAT with `contents:write`/`pull-requests:write` on this repo, used by `auto-rebase-dependabot.yml` and `dependabot-make-release.yml` (`gh pr merge`) because the default `GITHUB_TOKEN` can't merge PRs.
 - **Frontend OTEL CORS allow-list** (one-time, per project) — the OTLP ingest endpoint (`otlp.svc.istic.systems`) only accepts POSTs from allow-listed origins. Set `browser_otel: true` on the app's entry in `aquarion/autopelago`'s `host_vars/<host>/laravel_apps.yml` (staging inherits the flag from the parent app entry unless overridden). Without this, every browser error report fails silently — `reportError` never throws, by design, so there's no console signal that CORS is rejecting requests.
 - Confirm `aquarion/autopelago` has provisioned the target staging/production host before the CI deploy jobs will succeed.
 
@@ -94,8 +95,4 @@ composer test          # Pest, parallel
 
 `GET /version` returns `{"version", "pr_number", "branch"}` as JSON, sourced
 from the `APP_VERSION`, `APP_PR_NUMBER`, and `APP_BRANCH` env vars via
-`config('version')`. `config/version.php` also defines a `git_head_path` key
-(the path to `.git/HEAD`, for internal/future use), but the route explicitly
-excludes it from the public response — `routes/web.php` does
-`collect(config('version'))->except('git_head_path')` — since it would leak the
-server's absolute filesystem path.
+`config('version')`.

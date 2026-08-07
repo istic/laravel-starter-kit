@@ -11,10 +11,9 @@ it('exposes app version info as json', function () {
 
     getJson('/version')
         ->assertOk()
-        ->assertJson([
+        ->assertExactJson([
             'version' => '1.2.3',
             'pr_number' => '42',
             'branch' => 'main',
-        ])
-        ->assertJsonMissingPath('git_head_path');
+        ]);
 });

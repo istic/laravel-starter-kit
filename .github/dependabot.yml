@@ -17,7 +17,9 @@ updates:
     target-branch: "dependabot-updates"
 
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "/docker/production"
+      - "/docker/cloudflared"
     schedule:
       interval: "weekly"
     target-branch: "dependabot-updates"

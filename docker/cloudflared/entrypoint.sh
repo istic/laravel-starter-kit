@@ -12,23 +12,17 @@ else
     echo "[cloudflared] Running standalone"
 fi
 
-# Load environment variables
-if [[ -f "${WORKDIR}/.env" ]]; then
-    source "${WORKDIR}/.env"
-else
-    echo "[cloudflared] WARNING: ${WORKDIR}/.env not found; using default APP_PORT=80"
-fi
-
-if [[ -z "${APP_PORT:-}" ]]; then
-    export APP_PORT=80
-fi
+# The app is always reached over the internal sail network, where laravel.test
+# listens on container port 80 regardless of the host-side APP_PORT mapping
+# (see config.yml, which hardcodes the same port for the same reason).
+APP_INTERNAL_PORT=80
 
 # If in Docker, wait for the main app to be ready
 if [[ "$IN_DOCKER" == true ]]; then
-    echo "[cloudflared] Waiting for application to be ready on http://laravel.test:${APP_PORT}..."
+    echo "[cloudflared] Waiting for application to be ready on http://laravel.test:${APP_INTERNAL_PORT}..."
     MAX_ATTEMPTS=60 # ~2 minutes at 2s intervals
     attempt=0
-    until curl -sS -f "http://laravel.test:${APP_PORT}" > /tmp/cloudflared-health.log 2>&1; do
+    until curl -sS -f "http://laravel.test:${APP_INTERNAL_PORT}" > /tmp/cloudflared-health.log 2>&1; do
         attempt=$((attempt + 1))
         if [[ "$attempt" -ge "$MAX_ATTEMPTS" ]]; then
             echo "[cloudflared] ERROR: application did not become ready after ${MAX_ATTEMPTS} attempts." >&2

@@ -73,24 +73,35 @@ jobs:
       (github.event_name == 'schedule' || inputs.merge_dependabot == true)
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
       checks: read
 
     steps:
       - name: Merge dependabot-updates PR into main
         env:
-          GH_TOKEN: ${{ github.token }}
+          # github.token cannot merge PRs (see CLAUDE.md); use the same PAT
+          # as auto-rebase-dependabot.yml for this class of operation.
+          GH_TOKEN: ${{ secrets.REBASE_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          PR_STATE=$(gh pr view dependabot-updates --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
+          if ! PR_STATE_RAW=$(gh pr view dependabot-updates --json state --jq '.state' 2>&1); then
+            if echo "$PR_STATE_RAW" | grep -qi "no pull requests found"; then
+              PR_STATE="NOT_FOUND"
+            else
+              echo "ERROR: gh pr view failed: $PR_STATE_RAW" >&2
+              exit 1
+            fi
+          else
+            PR_STATE="$PR_STATE_RAW"
+          fi
           if [ "$PR_STATE" != "OPEN" ]; then
             echo "No open PR for dependabot-updates (state: $PR_STATE), creating one..."
             gh pr create --base main --head dependabot-updates \
               --title "chore: bump dependencies" \
               --body "Automated dependency updates"
           fi
-          PR_IS_DRAFT=$(gh pr view dependabot-updates --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
+          PR_IS_DRAFT=$(gh pr view dependabot-updates --json isDraft --jq '.isDraft')
           if [ "$PR_IS_DRAFT" = "true" ]; then
             gh pr ready dependabot-updates
           fi
