@@ -122,6 +122,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            APP_NAME=${{ env.APP_NAME }}
             APP_VERSION=${{ inputs.tag || github.ref_name }}
             APP_PR_NUMBER=${{ github.event.pull_request.number }}
             APP_BRANCH=${{ github.head_ref }}
