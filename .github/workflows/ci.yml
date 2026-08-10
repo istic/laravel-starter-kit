@@ -135,7 +135,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-staging-${{ github.event.pull_request.number }}
+      group: deploy-staging
       cancel-in-progress: false
     permissions:
       contents: read

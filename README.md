@@ -6,14 +6,16 @@ pipeline pre-wired. Infra/ops scope only — no frontend framework opinion.
 
 ## Getting started
 
-> `composer create-project istic/laravel-starter-kit` won't resolve on its own yet —
+> Plain `composer create-project istic/laravel-starter-kit` won't resolve yet —
 > this repo is on GitHub (https://github.com/istic/laravel-starter-kit) but isn't
-> registered on Packagist. Until it is, point Composer at the GitHub repo directly:
-> `composer create-project istic/laravel-starter-kit my-app --repository='{"type":"vcs","url":"https://github.com/istic/laravel-starter-kit"}'`
-> (or use a local `path` repository if working from a clone).
+> registered on Packagist. Until it is, point Composer at the GitHub repo directly
+> via a `vcs` repository (as below), or use a local `path` repository if working
+> from a clone.
 
 ```bash
-composer create-project istic/laravel-starter-kit my-app
+composer create-project istic/laravel-starter-kit my-app \
+  --repository='{"type":"vcs","url":"https://github.com/istic/laravel-starter-kit"}' \
+  --stability=dev
 cd my-app
 npm install
 npm run build
