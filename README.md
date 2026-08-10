@@ -6,23 +6,27 @@ pipeline pre-wired. Infra/ops scope only — no frontend framework opinion.
 
 ## Getting started
 
-> `composer create-project istic/laravel-starter-kit` requires this repo to be
-> pushed to a remote and registered (on Packagist, or as a VCS repository) —
-> neither has happened yet. Until then, use a local `path` repository (the
-> same approach used to verify this kit locally) or `composer create-project
-> --repository='{"type":"path","url":"/path/to/istic-laravel-starterkit"}'
-> istic/laravel-starter-kit my-app`.
+> `composer create-project istic/laravel-starter-kit` won't resolve on its own yet —
+> this repo is on GitHub (https://github.com/istic/laravel-starter-kit) but isn't
+> registered on Packagist. Until it is, point Composer at the GitHub repo directly:
+> `composer create-project istic/laravel-starter-kit my-app --repository='{"type":"vcs","url":"https://github.com/istic/laravel-starter-kit"}'`
+> (or use a local `path` repository if working from a clone).
 
 ```bash
 composer create-project istic/laravel-starter-kit my-app
 cd my-app
-cp .env.example .env
-php artisan key:generate
-composer install
 npm install
-php artisan migrate
 npm run build
 ```
+
+`composer create-project` already installs PHP dependencies and, via
+`composer.json`'s `post-root-package-install`/`post-create-project-cmd` hooks,
+copies `.env.example` to `.env`, generates `APP_KEY`, and runs migrations —
+you only need to install and build frontend assets afterward.
+
+If you're working directly in a clone of this repo instead (no `create-project`),
+run `composer setup` instead, which chains `composer install` + `.env` copy +
+key generation + migrate + `npm install` + `npm run build` in one step.
 
 ### `ext-opentelemetry` and `composer install`
 
