@@ -78,6 +78,76 @@ jobs:
       checks: read
 
     steps:
+      - name: Checkout dependabot-updates
+        uses: actions/checkout@v7
+        with:
+          ref: dependabot-updates
+          fetch-depth: 0
+          token: ${{ secrets.REBASE_TOKEN }} # pragma: allowlist secret
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          extensions: opentelemetry
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Merge main into dependabot-updates, regenerating lockfiles on conflict
+        run: |
+          set -e
+          git fetch origin main
+          if git merge origin/main --no-edit; then
+            echo "Merged main into dependabot-updates cleanly"
+            exit 0
+          fi
+
+          CONFLICTS=$(git diff --name-only --diff-filter=U)
+          echo "Conflicting files:"
+          echo "$CONFLICTS"
+
+          if [ -z "$CONFLICTS" ]; then
+            echo "::error::Merge failed but no conflicted files were found - not a simple content conflict, needs manual investigation"
+            git merge --abort
+            exit 1
+          fi
+
+          NON_LOCKFILE_CONFLICTS=$(echo "$CONFLICTS" | grep -vE '^(composer\.lock|package-lock\.json)$' || true)
+          if [ -n "$NON_LOCKFILE_CONFLICTS" ]; then
+            echo "::error::Conflicts outside of composer.lock/package-lock.json need manual resolution:"
+            echo "$NON_LOCKFILE_CONFLICTS"
+            git merge --abort
+            exit 1
+          fi
+
+          if echo "$CONFLICTS" | grep -qx 'composer.lock'; then
+            echo "Regenerating composer.lock"
+            rm -f composer.lock
+            composer update --no-interaction --no-scripts
+            git add composer.lock
+          fi
+
+          if echo "$CONFLICTS" | grep -qx 'package-lock.json'; then
+            echo "Regenerating package-lock.json"
+            rm -f package-lock.json
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+            git add package-lock.json
+          fi
+
+          git commit --no-edit
+
+      - name: Push resolved dependabot-updates
+        run: git push origin dependabot-updates
+
       - name: Merge dependabot-updates PR into main
         env:
           # github.token cannot merge PRs (see CLAUDE.md); use the same PAT
