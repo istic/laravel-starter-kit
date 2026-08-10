@@ -39,16 +39,12 @@ distro/package-manager equivalent).
 
 This also applies inside Sail: the stock Sail 8.4 runtime image
 (`vendor/laravel/sail/runtimes/8.4/Dockerfile`) does **not** install
-`ext-opentelemetry`, and `compose.yaml` doesn't pass a `PHP_EXTENSIONS` build arg
-to add it. So `./vendor/bin/sail composer install` will hit the same platform
-check failure out of the box.
+`ext-opentelemetry` by default. So `./vendor/bin/sail composer install` will hit
+the same platform check failure out of the box, unless you opt in:
 
-Until the Sail image is extended to include the extension, the practical options
-are:
-
-- Add `ext-opentelemetry` to `PHP_EXTENSIONS` in your `.env` and pass it through
-  `compose.yaml`'s `laravel.test` build args (matching the pattern already used
-  for `WWWGROUP`), or extend the Sail Dockerfile directly, **or**
+- Uncomment `PHP_EXTENSIONS=opentelemetry` in `.env` and rebuild
+  (`./vendor/bin/sail build --no-cache`) — `compose.yaml` already threads it
+  into the Sail image's `PHP_EXTENSIONS` build arg, **or**
 - Run Composer commands with `--ignore-platform-req=ext-opentelemetry` (both on
   bare metal and inside Sail) if you don't need backend OTEL working locally.
 

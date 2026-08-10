@@ -5,6 +5,7 @@ services:
             dockerfile: Dockerfile
             args:
                 WWWGROUP: '${WWWGROUP}'
+                PHP_EXTENSIONS: '${PHP_EXTENSIONS:-}'
         image: 'sail-8.4/app'
         extra_hosts:
             - 'host.docker.internal:host-gateway'
