@@ -73,6 +73,12 @@ installs the extension via `install-php-extensions opentelemetry` before running
 
 ## Local development
 
+This repo ships a [`pre-commit`](https://pre-commit.com) config (Pint, Composer lock validation, actionlint, detect-secrets, graphify). Install the hooks once per clone:
+
+```bash
+pre-commit install
+```
+
 Requires `composer install` to have already been run (see "Getting started" above) —
 `compose.yaml`'s `laravel.test` service builds from
 `./vendor/laravel/sail/runtimes/8.4`, a path inside `vendor/`, which only exists
