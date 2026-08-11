@@ -75,7 +75,7 @@ installs the extension via `install-php-extensions opentelemetry` before running
 
 ## Local development
 
-This repo ships a [`pre-commit`](https://pre-commit.com) config (Pint, Composer lock validation, actionlint, detect-secrets, graphify). Install the hooks once per clone:
+This repo ships a [`pre-commit`](https://pre-commit.com) config (Pint, PHPStan, Biome, Composer lock validation, actionlint, detect-secrets, graphify). Install the hooks once per clone:
 
 ```bash
 pre-commit install
@@ -92,11 +92,16 @@ after Composer has installed dependencies.
 
 Brings up the app, MySQL, Redis, Mailpit, and the `cloudflared` dev tunnel (once configured per above). The tunnel's Cloudflare account cert and per-tunnel credentials live in `docker/cloudflared/data/` (gitignored, bind-mounted into the container).
 
+Sessions are Redis-backed by default (`SESSION_DRIVER=redis` in `.env.example`), which Sail's `redis` service satisfies out of the box. In production this is only active if the deploy target injects `SESSION_DRIVER`/`REDIS_HOST` (e.g. `aquarion/autopelago`'s `firth_laravel_app` role, conditionally on that app having Redis configured) — if it doesn't, Laravel falls back to its own `database` default rather than failing.
+
 ## Testing
 
 ```bash
 composer lint:check   # Pint, --test mode
-composer test          # Pest, parallel
+composer stan         # PHPStan (Larastan), level 4
+composer test         # Pest, parallel
+npm run lint:check    # Biome lint
+npm run format:check  # Biome format check
 ```
 
 ## Version endpoint
