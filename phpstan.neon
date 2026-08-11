@@ -4,4 +4,8 @@ includes:
 parameters:
     paths:
         - app/
-    level: 4
+        - bootstrap/
+        - config/
+        - database/
+        - routes/
+    level: 6

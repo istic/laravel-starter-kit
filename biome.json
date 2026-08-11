@@ -6,7 +6,7 @@
     "formatter": {
         "indentStyle": "space",
         "indentWidth": 4,
-        "lineWidth": 80
+        "lineWidth": 120
     },
     "javascript": {
         "formatter": {
@@ -17,6 +17,9 @@
     "css": {
         "parser": {
             "tailwindDirectives": true
+        },
+        "formatter": {
+            "quoteStyle": "single"
         }
     },
     "linter": {

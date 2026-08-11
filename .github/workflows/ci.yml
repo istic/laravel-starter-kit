@@ -68,6 +68,12 @@ jobs:
       - name: Lint
         run: composer lint:check
 
+      - name: Static analysis
+        run: composer stan
+
+      - name: Biome
+        run: npx biome ci resources/
+
       - name: Run tests
         run: composer test
 

@@ -92,7 +92,7 @@ after Composer has installed dependencies.
 
 Brings up the app, MySQL, Redis, Mailpit, and the `cloudflared` dev tunnel (once configured per above). The tunnel's Cloudflare account cert and per-tunnel credentials live in `docker/cloudflared/data/` (gitignored, bind-mounted into the container).
 
-Sessions are Redis-backed by default (`SESSION_DRIVER=redis` in `.env.example`), which Sail's `redis` service satisfies out of the box. In production this is only active if the deploy target injects `SESSION_DRIVER`/`REDIS_HOST` (e.g. `aquarion/autopelago`'s `firth_laravel_app` role, conditionally on that app having Redis configured) — if it doesn't, Laravel falls back to its own `database` default rather than failing.
+Sessions are Redis-backed by default (`SESSION_DRIVER=redis` in `.env.example`, `REDIS_HOST=redis` matching Sail's `redis` service hostname). In production, `SESSION_DRIVER` and `REDIS_HOST` are injected together by the deploy target (e.g. `aquarion/autopelago`'s `firth_laravel_app` role, conditionally on that app having Redis configured) — if neither is injected, Laravel falls back to its own `database` session default. Injecting one without the other (`SESSION_DRIVER=redis` with no reachable `REDIS_HOST`) is not a safe state — it fails at connection time rather than falling back — so treat them as a pair.
 
 ## Testing
 
