@@ -75,7 +75,7 @@ installs the extension via `install-php-extensions opentelemetry` before running
 
 ## Local development
 
-This repo ships a [`pre-commit`](https://pre-commit.com) config (Pint, Composer lock validation, actionlint, detect-secrets, graphify). Install the hooks once per clone:
+This repo ships a [`pre-commit`](https://pre-commit.com) config (Pint, PHPStan, Biome, Composer lock validation, actionlint, detect-secrets, graphify). Install the hooks once per clone:
 
 ```bash
 pre-commit install
@@ -92,11 +92,16 @@ after Composer has installed dependencies.
 
 Brings up the app, MySQL, Redis, Mailpit, and the `cloudflared` dev tunnel (once configured per above). The tunnel's Cloudflare account cert and per-tunnel credentials live in `docker/cloudflared/data/` (gitignored, bind-mounted into the container).
 
+Sessions are Redis-backed by default (`SESSION_DRIVER=redis` in `.env.example`, `REDIS_HOST=redis` matching Sail's `redis` service hostname). In production, `SESSION_DRIVER` and `REDIS_HOST` are injected together by the deploy target (e.g. `aquarion/autopelago`'s `firth_laravel_app` role, conditionally on that app having Redis configured) — if neither is injected, Laravel falls back to its own `database` session default. Injecting one without the other (`SESSION_DRIVER=redis` with no reachable `REDIS_HOST`) is not a safe state — it fails at connection time rather than falling back — so treat them as a pair.
+
 ## Testing
 
 ```bash
 composer lint:check   # Pint, --test mode
-composer test          # Pest, parallel
+composer stan         # PHPStan (Larastan), level 4
+composer test         # Pest, parallel
+npm run lint:check    # Biome lint
+npm run format:check  # Biome format check
 ```
 
 ## Version endpoint
