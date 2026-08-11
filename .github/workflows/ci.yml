@@ -147,7 +147,12 @@ jobs:
       contents: read
 
     steps:
+      - name: Deploy staging (noop)
+        if: vars.DEPLOY_NOOP == 'true'
+        run: echo "DEPLOY_NOOP repo variable is set — skipping the actual SSH deploy. Unset it (or set to anything other than 'true') once a real staging host is configured."
+
       - name: Deploy staging
+        if: vars.DEPLOY_NOOP != 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -204,7 +209,12 @@ jobs:
       contents: read
 
     steps:
+      - name: Deploy production (noop)
+        if: vars.DEPLOY_NOOP == 'true'
+        run: echo "DEPLOY_NOOP repo variable is set — skipping the actual SSH deploy. Unset it (or set to anything other than 'true') once a real production host is configured."
+
       - name: Deploy production
+        if: vars.DEPLOY_NOOP != 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
