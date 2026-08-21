@@ -19,6 +19,6 @@
         "vite": "^8.0.0"
     },
     "dependencies": {
-        "@istic-co/otel-browser-errors": "^0.2.1"
+        "@istic-co/otel-browser-errors": "^0.3.0"
     }
 }
