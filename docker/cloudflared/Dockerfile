@@ -1,6 +1,6 @@
 FROM cloudflare/cloudflared:latest AS cloudflared
 
-FROM alpine:3.20
+FROM alpine:3.24
 
 RUN apk add --no-cache bash curl grep sed coreutils
 
