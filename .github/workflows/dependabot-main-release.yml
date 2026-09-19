@@ -1,20 +1,61 @@
 name: "[Dependabot] Release on main merge"
 
 # Dependabot security updates target main directly (target-branch in
-# dependabot.yml only applies to version updates), bypassing the
-# dependabot-updates -> weekly release flow. Once one of those PRs is
-# auto-merged (which only happens once its checks pass), cut a patch
-# release for it here instead of waiting for the next scheduled run.
+# dependabot.yml only applies to version updates), so they merge via
+# dependabot-auto-merge.yml instead of the dependabot-updates -> weekly
+# release flow. GitHub's auto-merge only blocks on *required* status
+# checks, so a completed merge doesn't by itself prove CI passed unless
+# main's branch protection requires it - re-check the check-runs on the
+# merged commit directly here before cutting a release.
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
 
 permissions: {}
 
 jobs:
+  check-eligible:
+    if: github.event.head_commit.author.username == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      eligible: ${{ steps.wait.outputs.eligible }}
+
+    steps:
+      - name: Wait for checks on this commit and confirm success
+        id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          echo "Waiting up to 15 minutes for checks on ${SHA} to settle..."
+          for _ in $(seq 1 30); do
+            runs=$(gh api "repos/${{ github.repository }}/commits/${SHA}/check-runs" --jq '.check_runs')
+            total=$(echo "$runs" | jq 'length')
+            pending=$(echo "$runs" | jq '[.[] | select(.status != "completed")] | length')
+            if [ "$pending" -eq 0 ] && [ "$total" -gt 0 ]; then
+              break
+            fi
+            sleep 30
+          done
+
+          runs=$(gh api "repos/${{ github.repository }}/commits/${SHA}/check-runs" --jq '.check_runs')
+          failed=$(echo "$runs" | jq '[.[] | select(.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")] | length')
+          if [ "$failed" -gt 0 ]; then
+            echo "One or more checks on ${SHA} did not pass, skipping release."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "All checks green on ${SHA}, proceeding to release."
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
   release:
-    if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'dependabot[bot]'
+    needs: check-eligible
+    if: needs.check-eligible.outputs.eligible == 'true'
     concurrency:
       group: release-tag
       cancel-in-progress: false
