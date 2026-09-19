@@ -1,0 +1,27 @@
+name: "[Dependabot] Release on main merge"
+
+# Dependabot security updates target main directly (target-branch in
+# dependabot.yml only applies to version updates), bypassing the
+# dependabot-updates -> weekly release flow. Once one of those PRs is
+# auto-merged (which only happens once its checks pass), cut a patch
+# release for it here instead of waiting for the next scheduled run.
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'dependabot[bot]'
+    concurrency:
+      group: release-tag
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version_bump: patch
+    secrets: inherit # pragma: allowlist secret
