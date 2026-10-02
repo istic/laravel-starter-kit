@@ -11,7 +11,7 @@
         "lint:check": "biome lint resources/"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.5.10",
+        "@biomejs/biome": "^2.5.14",
         "@tailwindcss/vite": "^4.0.0",
         "concurrently": "^10.0.5",
         "laravel-vite-plugin": "^3.2",
