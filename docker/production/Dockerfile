@@ -20,7 +20,7 @@ LABEL description="<TODO: app name> production image"
 
 COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/bin/install-php-extensions
 
-RUN docker-php-ext-install pdo_mysql opcache bcmath \
+RUN docker-php-ext-install pdo_mysql bcmath \
     && install-php-extensions opentelemetry redis
 
 COPY docker/production/php-opcache.ini /usr/local/etc/php/conf.d/opcache.ini
