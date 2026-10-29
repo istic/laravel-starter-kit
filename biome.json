@@ -1,7 +1,7 @@
 {
     "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
     "files": {
-        "includes": ["resources/**/*.{js,jsx,ts,tsx,json,css}"]
+        "includes": ["resources/**/*.{js,jsx,ts,tsx,json,css}", "!resources/branding/app.icon/icon.json"]
     },
     "formatter": {
         "indentStyle": "space",
