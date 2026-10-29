@@ -6,6 +6,10 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
+        <link rel="icon" href="{{ \Illuminate\Support\Facades\Vite::asset('resources/icons/favicon.ico') }}" sizes="any">
+        <link rel="icon" href="{{ \Illuminate\Support\Facades\Vite::asset('resources/icons/favicon.svg') }}" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="{{ \Illuminate\Support\Facades\Vite::asset('resources/icons/apple-touch-icon.png') }}">
+
         @fonts
 
         <!-- Styles / Scripts -->
