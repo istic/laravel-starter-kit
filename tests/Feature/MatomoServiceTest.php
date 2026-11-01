@@ -270,3 +270,54 @@ it('returns null when the matomo api connection times out', function () {
 
     expect((new MatomoService)->getConfig())->toBeNull();
 });
+
+it('bypasses the cached config when a matomo setting changes', function () {
+    Http::fake([
+        '*' => function ($request) {
+            $method = $request->data()['method'] ?? '';
+
+            if ($method === 'SitesManager.getAllSites') {
+                return Http::response([['idsite' => '3', 'main_url' => 'https://app.example.com']]);
+            }
+
+            if ($method === 'Goals.getGoals') {
+                return Http::response([['idgoal' => '1', 'name' => 'Registration complete']]);
+            }
+
+            return Http::response([], 200);
+        },
+    ]);
+
+    (new MatomoService)->getConfig();
+    Http::assertSentCount(2);
+
+    config(['services.matomo.url' => 'https://matomo.example.org']);
+    $config = (new MatomoService)->getConfig();
+
+    expect($config['tracker_url'])->toBe('https://matomo.example.org');
+    Http::assertSentCount(4);
+});
+
+it('returns null without calling the api while another request is provisioning', function () {
+    Http::fake();
+
+    $service = new class extends MatomoService
+    {
+        protected function lockWaitSeconds(): int
+        {
+            return 0;
+        }
+    };
+    // cacheKey() is private to MatomoService, so bind to that scope, not the subclass's.
+    $cacheKey = Closure::bind(fn () => $this->cacheKey(), $service, MatomoService::class)();
+    $lock = Cache::lock($cacheKey.':lock', 30);
+    expect($lock->get())->toBeTrue();
+
+    try {
+        expect($service->getConfig())->toBeNull();
+        Http::assertNothingSent();
+        expect(Cache::get($cacheKey))->toBeNull();
+    } finally {
+        $lock->release();
+    }
+});

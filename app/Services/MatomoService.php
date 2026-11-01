@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class MatomoService
 {
-    private const CACHE_KEY = 'matomo:config';
+    private const CACHE_KEY_PREFIX = 'matomo:config:';
 
     private const CACHE_TTL = 3600;
 
@@ -29,6 +30,15 @@ class MatomoService
     private const TIMEOUT_SECONDS = 5;
 
     /**
+     * Provisioning makes up to a handful of API calls, each bounded by the
+     * timeouts above; the lock must outlive that, and other requests wait a
+     * little less than that before giving up and rendering without Matomo.
+     */
+    private const LOCK_TTL_SECONDS = 30;
+
+    private const LOCK_WAIT_SECONDS = 10;
+
+    /**
      * Resolve the Matomo tracker config for this app, creating the site and
      * any configured goals in Matomo on first use. Returns null when Matomo
      * is not configured or the API is unreachable.
@@ -41,11 +51,70 @@ class MatomoService
             return null;
         }
 
-        $cached = Cache::get(self::CACHE_KEY);
+        $cacheKey = $this->cacheKey();
+
+        $cached = $this->fromCache($cacheKey);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        // Serialise provisioning: two requests that both miss the cache would
+        // otherwise each see no matching site and create duplicate sites/goals.
+        try {
+            return Cache::lock($cacheKey.':lock', self::LOCK_TTL_SECONDS)
+                ->block($this->lockWaitSeconds(), fn () => $this->provision($cacheKey));
+        } catch (LockTimeoutException) {
+            // Another request is still provisioning; render without the tracker
+            // this time rather than stall the page.
+            return null;
+        }
+    }
+
+    protected function lockWaitSeconds(): int
+    {
+        return self::LOCK_WAIT_SECONDS;
+    }
+
+    /**
+     * Keyed on every setting the result depends on, so changing any of them
+     * (e.g. a new MATOMO_URL) takes effect immediately instead of serving the
+     * old site ID or a cached failure until the TTL runs out.
+     */
+    private function cacheKey(): string
+    {
+        return self::CACHE_KEY_PREFIX.sha1(json_encode([
+            config('app.url'),
+            config('app.name'),
+            config('services.matomo.url'),
+            config('services.matomo.auth_token'),
+            config('services.matomo.goals', []),
+        ]));
+    }
+
+    /**
+     * Returns false on a cache miss and null for a cached failure.
+     *
+     * @return array{tracker_url: string, site_id: int, goals: array<string, int>}|false|null
+     */
+    private function fromCache(string $cacheKey): array|false|null
+    {
+        $cached = Cache::get($cacheKey);
+
         if ($cached === self::FAILURE_SENTINEL) {
             return null;
         }
-        if ($cached !== null) {
+
+        return $cached ?? false;
+    }
+
+    /**
+     * @return array{tracker_url: string, site_id: int, goals: array<string, int>}|null
+     */
+    private function provision(string $cacheKey): ?array
+    {
+        // Whoever held the lock before us may have just filled the cache.
+        $cached = $this->fromCache($cacheKey);
+        if ($cached !== false) {
             return $cached;
         }
 
@@ -59,7 +128,7 @@ class MatomoService
                 'goals' => $goals,
             ];
 
-            Cache::put(self::CACHE_KEY, $config, self::CACHE_TTL);
+            Cache::put($cacheKey, $config, self::CACHE_TTL);
 
             return $config;
         } catch (\Throwable $e) {
@@ -70,7 +139,7 @@ class MatomoService
                 'matomo_url' => config('services.matomo.url'),
             ]);
 
-            Cache::put(self::CACHE_KEY, self::FAILURE_SENTINEL, self::FAILURE_CACHE_TTL);
+            Cache::put($cacheKey, self::FAILURE_SENTINEL, self::FAILURE_CACHE_TTL);
 
             return null;
         }

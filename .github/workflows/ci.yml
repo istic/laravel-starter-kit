@@ -5,7 +5,7 @@ on:
     branches: [dependabot-updates]
   pull_request:
     branches: ["**"]
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -24,10 +24,6 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # 'edited' also fires for title/body-only edits, not just base-branch
-    # retargets — skip those so an unrelated description tweak doesn't
-    # trigger a full test + build-and-push + deploy-staging run.
-    if: github.event.action != 'edited' || github.event.changes.base != null
     permissions:
       contents: read
 
