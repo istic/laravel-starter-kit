@@ -19,6 +19,14 @@ The kit has no tagged releases yet, so earlier entries are grouped by date.
   and failed lookups are cached for five minutes.
 - This changelog.
 
+### Changed
+
+- CI no longer runs on `pull_request` `edited` events. A title or description
+  edit created a new run on the same commit with `test` skipped, and a skipped
+  job counts as passing for required checks, which could hide an earlier test
+  failure. Retargeting a PR's base branch no longer re-runs CI on its own; push
+  a commit or re-run the workflow instead.
+
 ### Fixed
 
 - `dependabot-auto-merge.yml` now runs on `pull_request_target` instead of
@@ -28,6 +36,14 @@ The kit has no tagged releases yet, so earlier entries are grouped by date.
   `dependabot-updates` aggregate PR, and `dependabot-main-release.yml` for
   security updates merged into `main`. Before this, those releases never
   fired. Projects built from the kit need the `REBASE_TOKEN` secret set.
+- `MatomoService` caches under a key derived from `APP_URL`, `APP_NAME`,
+  `MATOMO_URL`, `MATOMO_AUTH_TOKEN` and the configured goals, so changing any
+  of them takes effect at once instead of serving the old site ID or a cached
+  failure until the TTL expires.
+- `MatomoService` provisions under a cache lock, so two requests that miss the
+  cache at once can't create duplicate Matomo sites or goals. A request that
+  waits more than 10 seconds for the lock renders without the tracker and
+  caches nothing.
 
 ## 2026-10-29
 
