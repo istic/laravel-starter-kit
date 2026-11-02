@@ -321,3 +321,15 @@ it('returns null without calling the api while another request is provisioning',
         $lock->release();
     }
 });
+
+it('holds the provisioning lock long enough for every api call to time out', function () {
+    config(['services.matomo.goals' => [
+        'a' => 'Goal A', 'b' => 'Goal B', 'c' => 'Goal C', 'd' => 'Goal D',
+    ]]);
+
+    $service = new MatomoService;
+    $lockTtl = Closure::bind(fn () => $this->lockTtlSeconds(), $service, MatomoService::class)();
+
+    // getAllSites + addSite + getGoals + one addGoal per goal, 5s timeout each.
+    expect($lockTtl)->toBeGreaterThan((3 + 4) * 5);
+});

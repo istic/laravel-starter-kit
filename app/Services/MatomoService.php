@@ -30,11 +30,12 @@ class MatomoService
     private const TIMEOUT_SECONDS = 5;
 
     /**
-     * Provisioning makes up to a handful of API calls, each bounded by the
-     * timeouts above; the lock must outlive that, and other requests wait a
-     * little less than that before giving up and rendering without Matomo.
+     * Provisioning makes three API calls plus one per missing goal (see
+     * lockTtlSeconds()); the lock must outlive the worst case so a second
+     * request can't start provisioning while the first is still creating
+     * goals. Extra seconds on top of that worst case, for request overhead.
      */
-    private const LOCK_TTL_SECONDS = 30;
+    private const LOCK_TTL_MARGIN_SECONDS = 10;
 
     private const LOCK_WAIT_SECONDS = 10;
 
@@ -61,13 +62,24 @@ class MatomoService
         // Serialise provisioning: two requests that both miss the cache would
         // otherwise each see no matching site and create duplicate sites/goals.
         try {
-            return Cache::lock($cacheKey.':lock', self::LOCK_TTL_SECONDS)
+            return Cache::lock($cacheKey.':lock', $this->lockTtlSeconds())
                 ->block($this->lockWaitSeconds(), fn () => $this->provision($cacheKey));
         } catch (LockTimeoutException) {
             // Another request is still provisioning; render without the tracker
             // this time rather than stall the page.
             return null;
         }
+    }
+
+    /**
+     * Worst-case provisioning time: getAllSites, addSite and getGoals, plus
+     * one addGoal per configured goal, each bounded by TIMEOUT_SECONDS.
+     */
+    private function lockTtlSeconds(): int
+    {
+        $calls = 3 + count(config('services.matomo.goals', []));
+
+        return $calls * self::TIMEOUT_SECONDS + self::LOCK_TTL_MARGIN_SECONDS;
     }
 
     protected function lockWaitSeconds(): int
