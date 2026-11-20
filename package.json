@@ -17,7 +17,7 @@
         "concurrently": "^10.0.7",
         "laravel-vite-plugin": "^3.2",
         "tailwindcss": "^4.3.4",
-        "vite": "^8.3.5"
+        "vite": "^8.3.8"
     },
     "dependencies": {
         "@istic-co/otel-browser-errors": "^0.3.0"
