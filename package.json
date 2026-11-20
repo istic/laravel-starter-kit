@@ -11,7 +11,7 @@
         "lint:check": "biome lint resources/"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.6.4",
+        "@biomejs/biome": "^2.6.8",
         "@istic-co/annealer": "^2.0.0",
         "@tailwindcss/vite": "^4.3.5",
         "concurrently": "^10.0.7",
