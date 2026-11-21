@@ -11,13 +11,13 @@
         "lint:check": "biome lint resources/"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.6.4",
-        "@istic-co/annealer": "^1.2.0",
+        "@biomejs/biome": "^2.6.8",
+        "@istic-co/annealer": "^2.0.0",
         "@tailwindcss/vite": "^4.3.5",
         "concurrently": "^10.0.7",
         "laravel-vite-plugin": "^3.2",
         "tailwindcss": "^4.3.4",
-        "vite": "^8.3.5"
+        "vite": "^8.3.8"
     },
     "dependencies": {
         "@istic-co/otel-browser-errors": "^0.3.0"
